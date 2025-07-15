@@ -7,7 +7,7 @@ interface OrderModalProps {
   service: Service | null;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (orderId: number) => void;
+  onSuccess: (orderId: number, link: string, quantity: number) => void;
 }
 
 export const OrderModal: React.FC<OrderModalProps> = ({
@@ -24,39 +24,31 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   if (!isOpen || !service) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!service.apiServiceId) {
-      setError('Este serviço não está disponível via API');
-      return;
-    }
-
-    if (!link.trim()) {
-      setError('Por favor, insira o link do perfil/post');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiClient.addOrder(
-        service.apiServiceId,
-        link.trim(),
-        quantity * 1000 // Convert to actual quantity
-      );
-      
-      onSuccess(response.order);
-      onClose();
-      setLink('');
-      setQuantity(1);
-    } catch (err) {
-      setError('Falha ao criar pedido. Tente novamente.');
-      console.error('Order creation failed:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  e.preventDefault();
+  if (!service?.apiServiceId) {
+    setError('Este serviço não está disponível via API');
+    return;
+  }
+  if (!link.trim()) {
+    setError('Por favor, insira o link do perfil/post');
+    return;
+  }
+  setLoading(true);
+  setError(null);
+  try {
+    const response = await apiClient.addOrder(
+      service.apiServiceId,
+      link.trim(),
+      quantity * 1000
+    );
+    onSuccess(response.order, link, quantity); // Pass link and quantity
+  } catch (err) {
+    setError('Falha ao criar pedido. Tente novamente.');
+    console.error('Order creation failed:', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const total = service.price * quantity;
 

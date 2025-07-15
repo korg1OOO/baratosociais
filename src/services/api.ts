@@ -22,8 +22,8 @@ export interface ApiOrderStatus {
   currency: string;
 }
 
-const API_KEY = '66dbcb0257919bcf2af6258de13872a0';
-const API_URL = 'https://baratosociais.com/api/v2';
+const API_KEY = 'db532c749a096ccd762b68e151995624';
+const API_URL = '/api'; // Use proxy prefix
 
 export class BaratoSociaisAPI {
   private async makeRequest(params: Record<string, any>) {
