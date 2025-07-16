@@ -1,12 +1,11 @@
 import React from 'react';
-import { Eye, Clock, CheckCircle, Star, ShoppingCart, Zap } from 'lucide-react';
+import { Eye, Clock, CheckCircle, Star, ShoppingCart } from 'lucide-react';
 import { Service } from '../types';
 
 interface ServiceCardProps {
   service: Service;
   onViewDetails: (service: Service) => void;
-  onAddToCart: (service: Service) => void;
-  onDirectOrder: (service: Service) => void;
+  onAddToCart: (service: Service) => void; // Updated to trigger OrderModal
 }
 
 const platformIcons = {
@@ -34,8 +33,7 @@ const platformColors = {
 export const ServiceCard: React.FC<ServiceCardProps> = ({ 
   service, 
   onViewDetails, 
-  onAddToCart,
-  onDirectOrder
+  onAddToCart
 }) => {
   const hasApiIntegration = !!service.apiServiceId;
 
@@ -103,23 +101,13 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             <span>Detalhes</span>
           </button>
           
-          {hasApiIntegration ? (
-            <button
-              onClick={() => onDirectOrder(service)}
-              className="flex items-center space-x-1 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white px-4 py-2 rounded-lg transition-all duration-300 font-semibold text-sm hover:scale-105 flex-1"
-            >
-              <Zap className="h-4 w-4" />
-              <span>Pedir</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => onAddToCart(service)}
-              className="flex items-center space-x-1 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white px-4 py-2 rounded-lg transition-all duration-300 font-semibold text-sm hover:scale-105 flex-1"
-            >
-              <ShoppingCart className="h-4 w-4" />
-              <span>Carrinho</span>
-            </button>
-          )}
+          <button
+            onClick={() => onAddToCart(service)}
+            className="flex items-center space-x-1 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white px-4 py-2 rounded-lg transition-all duration-300 font-semibold text-sm hover:scale-105 flex-1"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            <span>Adicionar ao Carrinho</span>
+          </button>
         </div>
       </div>
     </div>

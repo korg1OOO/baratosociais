@@ -1,62 +1,63 @@
 import React, { useState } from 'react';
-import { X, ExternalLink, AlertCircle } from 'lucide-react';
+import { X, AlertCircle, ShoppingCart } from 'lucide-react';
 import { Service } from '../types';
-import { apiClient } from '../services/api';
 
 interface OrderModalProps {
   service: Service | null;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (orderId: number, link: string, quantity: number) => void;
+  onAddToCart: (service: Service, quantity: number, link: string) => void;
+  onOpenCart: () => void;
 }
 
 export const OrderModal: React.FC<OrderModalProps> = ({
   service,
   isOpen,
   onClose,
-  onSuccess
+  onAddToCart,
+  onOpenCart
 }) => {
   const [link, setLink] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [quantity, setQuantity] = useState(1); // Default to 1 (1000 units)
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen || !service) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!service?.apiServiceId) {
-    setError('Este serviço não está disponível via API');
-    return;
-  }
-  if (!link.trim()) {
-    setError('Por favor, insira o link do perfil/post');
-    return;
-  }
-  setLoading(true);
-  setError(null);
-  try {
-    const response = await apiClient.addOrder(
-      service.apiServiceId,
-      link.trim(),
-      quantity * 1000
-    );
-    onSuccess(response.order, link, quantity); // Pass link and quantity
-  } catch (err) {
-    setError('Falha ao criar pedido. Tente novamente.');
-    console.error('Order creation failed:', err);
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleQuantityChange = (value: string) => {
+    const num = parseFloat(value) || service.minQuantity;
+    const cappedQuantity = Math.max(service.minQuantity, Math.min(num, service.maxQuantity));
+    setQuantity(cappedQuantity);
+  };
 
-  const total = service.price * quantity;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!link.trim()) {
+      setError('Por favor, insira o link do perfil/post');
+      return;
+    }
+    if (quantity < service.minQuantity) {
+      setError(`A quantidade mínima é ${service.minQuantity} mil unidades`);
+      return;
+    }
+    if (quantity > service.maxQuantity) {
+      setError(`A quantidade máxima é ${service.maxQuantity} mil unidades`);
+      return;
+    }
+    setError(null);
+    onAddToCart(service, quantity, link.trim());
+    onOpenCart();
+    setLink('');
+    setQuantity(service.minQuantity);
+    onClose();
+  };
+
+  const total = service.price * quantity; // Price per 1000 units
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
         <div className="border-b border-gray-200 p-6 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-800">Fazer Pedido</h2>
+          <h2 className="text-xl font-bold text-gray-800">Adicionar ao Carrinho</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -106,14 +107,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             <input
               type="number"
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => handleQuantityChange(e.target.value)}
               min={service.minQuantity}
               max={service.maxQuantity}
+              step={0.001} // Allow decimals for precision (e.g., 1.05 = 1050 units)
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               required
             />
             <p className="text-xs text-gray-500 mt-1">
-              Mín: {service.minQuantity}k - Máx: {service.maxQuantity}k
+              Mín: {service.minQuantity} mil - Máx: {service.maxQuantity} mil (ex.: 1 = 1000 unidades)
             </p>
           </div>
 
@@ -125,29 +127,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               </span>
             </div>
             <p className="text-sm text-gray-600 mt-1">
-              {quantity * 1000} unidades × R$ {service.price.toFixed(2).replace('.', ',')}
+              {quantity} mil unidades × R$ {service.price.toFixed(2).replace('.', ',')} por mil
             </p>
           </div>
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white py-3 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white py-3 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center space-x-2"
           >
-            {loading ? 'Processando...' : 'Fazer Pedido'}
+            <ShoppingCart className="h-4 w-4" />
+            <span>Adicionar ao Carrinho</span>
           </button>
-
-          <div className="mt-4 text-center">
-            <a
-              href="https://baratosociais.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1 text-sm text-gray-500 hover:text-purple-600 transition-colors"
-            >
-              <ExternalLink className="h-4 w-4" />
-              <span>Powered by Barato Sociais</span>
-            </a>
-          </div>
         </form>
       </div>
     </div>

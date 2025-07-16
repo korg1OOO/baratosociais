@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Header } from './components/Header';
 import { ServiceCard } from './components/ServiceCard';
 import { ServiceModal } from './components/ServiceModal';
@@ -8,7 +9,7 @@ import { Checkout } from './components/Checkout';
 import { Filters } from './components/Filters';
 import { ApiStatus } from './components/ApiStatus';
 import { useServices } from './hooks/useServices';
-import { Service, CartItem, Customer, Order, ApiOrder } from './types';
+import { Service, CartItem, Customer, Order } from './types';
 import { placeOrder, getBalance } from './services/order';
 import { fetchServices } from './data/services';
 
@@ -21,11 +22,16 @@ function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [apiOrders, setApiOrders] = useState<ApiOrder[]>([]);
   const [balance, setBalance] = useState<{ balance: string; currency: string } | null>(null);
-  const [searchTerm, setSearchTerm] = useState(''); // Moved up
-  const [selectedCategory, setSelectedCategory] = useState('all'); // Moved up
-  const [selectedPlatform, setSelectedPlatform] = useState('all'); // Moved up
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedPlatform, setSelectedPlatform] = useState('all');
+
+  // API credentials
+  const API_BASE_URL = 'https://app.duckfy.com.br/api/v1';
+  const PUBLIC_KEY = 'latelieronline01_ge7s6u5s5wi2rvgw';
+  const SECRET_KEY = 't4mubgfc587z4kunu28olwlq5qp8xf14j6zmwftd4vw9skjdia2l46hbcj1lscze';
+  const WEBHOOK_URL = process.env.REACT_APP_WEBHOOK_URL || 'https://your-webhook-url.com/webhook';
 
   // Fetch balance on mount
   useEffect(() => {
@@ -56,47 +62,35 @@ function App() {
     setIsModalOpen(true);
   };
 
-  const handleDirectOrder = (service: Service) => {
+  const handleAddToCart = (service: Service, quantity: number, link: string) => {
+    setCart((prevCart) => {
+      const existingItem = prevCart.find((item) => item.service.id === service.id && item.link === link);
+      if (existingItem) {
+        const newQuantity = Math.min(existingItem.quantity + quantity, service.maxQuantity);
+        return prevCart.map((item) =>
+          item.service.id === service.id && item.link === link
+            ? { ...item, quantity: Math.max(service.minQuantity, newQuantity) }
+            : item
+        );
+      } else {
+        return [...prevCart, { service, quantity: Math.max(service.minQuantity, Math.min(quantity, service.maxQuantity)), link }];
+      }
+    });
+    setIsOrderModalOpen(false);
+    setSelectedService(null);
+    setIsCartOpen(true);
+  };
+
+  const handleOpenOrderModal = (service: Service) => {
     setSelectedService(service);
     setIsOrderModalOpen(true);
   };
 
-  const handleOrderSuccess = (orderId: number) => {
-    alert(`Pedido criado com sucesso! ID: ${orderId}`);
-    const newApiOrder: ApiOrder = {
-      id: orderId.toString(),
-      serviceId: selectedService?.apiServiceId || 0,
-      link: '', // Placeholder; should come from OrderModal
-      quantity: 0, // Placeholder; should come from OrderModal
-      status: 'pending',
-      apiOrderId: orderId,
-      createdAt: new Date(),
-    };
-    setApiOrders((prev) => [...prev, newApiOrder]);
-    setIsOrderModalOpen(false);
-    setSelectedService(null);
-  };
-
-  const handleAddToCart = (service: Service, quantity: number = 1) => {
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.service.id === service.id);
-
-      if (existingItem) {
-        return prevCart.map((item) =>
-          item.service.id === service.id
-            ? { ...item, quantity: Math.min(item.quantity + quantity, service.maxQuantity) }
-            : item
-        );
-      } else {
-        return [...prevCart, { service, quantity }];
-      }
-    });
-    setIsModalOpen(false);
-    setSelectedService(null);
-  };
-
   const handleUpdateQuantity = (serviceId: string, quantity: number) => {
-    if (quantity <= 0) {
+    const service = cart.find((item) => item.service.id === serviceId)?.service;
+    if (!service) return;
+
+    if (quantity < service.minQuantity) {
       handleRemoveItem(serviceId);
       return;
     }
@@ -104,7 +98,7 @@ function App() {
     setCart((prevCart) =>
       prevCart.map((item) =>
         item.service.id === serviceId
-          ? { ...item, quantity }
+          ? { ...item, quantity: Math.min(quantity, item.service.maxQuantity) }
           : item
       )
     );
@@ -119,36 +113,132 @@ function App() {
     setIsCheckoutOpen(true);
   };
 
-  const handleCompleteOrder = (customer: Customer) => {
-    // Convert cart items to orders
-    const newOrder: Order = {
-      id: Date.now().toString(),
-      customer,
-      items: [...cart],
-      total: cart.reduce((sum, item) => sum + item.service.price * item.quantity, 0),
-      status: 'pending',
-      createdAt: new Date(),
-    };
-    setOrders((prev) => [...prev, newOrder]);
+  const handleCompleteOrder = async (customer: Customer) => {
+    try {
+      // Create Pix payments for each cart item
+      const pixResponses = await Promise.all(
+        cart.map(async (item) => {
+          if (!item.service.apiServiceId) {
+            throw new Error(`Serviço ${item.service.name} não suporta API`);
+          }
+          const response = await axios.post(
+            `${API_BASE_URL}/gateway/pix/receive`,
+            {
+              identifier: `order-${Date.now()}-${item.service.id}`,
+              amount: item.service.price * item.quantity, // Price per 1000 units
+              client: {
+                name: customer.name,
+                email: customer.email,
+                phone: customer.phone,
+                document: customer.socialHandle, // CPF/CNPJ
+              },
+              products: [
+                {
+                  id: item.service.id,
+                  name: item.service.name,
+                  quantity: item.quantity, // In thousands
+                  price: item.service.price, // Price per 1000 units
+                },
+              ],
+              dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 day from now
+              metadata: { orderId: `order-${Date.now()}` },
+              callbackUrl: WEBHOOK_URL,
+            },
+            {
+              headers: {
+                'x-public-key': PUBLIC_KEY,
+                'x-secret-key': SECRET_KEY,
+              },
+            }
+          );
 
-    // Optionally convert any pending API orders with this customer
-    setApiOrders((prevApiOrders) =>
-      prevApiOrders.map((apiOrder) => {
-        const matchingCartItem = cart.find((item) => item.service.apiServiceId === apiOrder.serviceId);
-        if (matchingCartItem) {
-          return { ...apiOrder, status: 'processing' }; // Mark as processing
+          const { transactionId, status, pix } = response.data;
+          if (status !== 'OK') {
+            throw new Error(`Falha na transação para ${item.service.name}: ${response.data.errorDescription || 'Erro desconhecido'}`);
+          }
+
+          // Store order for webhook updates
+          const order: Order = {
+            id: Date.now().toString() + '-' + item.service.id,
+            customer,
+            items: [item],
+            total: item.service.price * item.quantity,
+            status: 'pending',
+            createdAt: new Date(),
+            transactionId,
+          };
+
+          // Send order to webhook server
+          await axios.post(`${WEBHOOK_URL}/update-order`, { transactionId, order });
+
+          return { transactionId, pix };
+        })
+      );
+
+      setOrders((prev) => [...prev, ...pixResponses.map((res, index) => ({
+        id: Date.now().toString() + '-' + cart[index].service.id,
+        customer,
+        items: [cart[index]],
+        total: cart[index].service.price * cart[index].quantity,
+        status: 'pending',
+        createdAt: new Date(),
+        transactionId: res.transactionId,
+      }))]);
+
+      setCart([]);
+      return pixResponses; // Return Pix data for Checkout
+    } catch (err) {
+      console.error('Failed to complete order:', err);
+      throw err;
+    }
+  };
+
+  const handleWebhookUpdate = async (webhookData: any) => {
+    const { event, transaction } = webhookData;
+    if (event === 'TRANSACTION_PAID' && transaction.status === 'COMPLETED') {
+      const transactionId = transaction.id;
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.transactionId === transactionId
+            ? { ...order, status: 'processing' } // Set to processing until placeOrder completes
+            : order
+        )
+      );
+
+      // Trigger placeOrder for each item in the order
+      const order = orders.find((o) => o.transactionId === transactionId);
+      if (order) {
+        try {
+          const apiOrderIds = await Promise.all(
+            order.items.map(async (item) => {
+              if (item.service.apiServiceId) {
+                return await placeOrder(item.service.apiServiceId, item.link, item.quantity * 1000); // Convert to actual units
+              }
+              return null;
+            })
+          );
+
+          setOrders((prevOrders) =>
+            prevOrders.map((o) =>
+              o.transactionId === transactionId
+                ? { ...o, status: 'completed', apiOrderId: apiOrderIds[0] || undefined }
+                : o
+            )
+          );
+        } catch (err) {
+          console.error('Failed to place order after payment:', err);
+          setOrders((prevOrders) =>
+            prevOrders.map((o) =>
+              o.transactionId === transactionId ? { ...o, status: 'failed' } : o
+            )
+          );
         }
-        return apiOrder;
-      })
-    );
-
-    setCart([]);
-    setIsCheckoutOpen(false);
+      }
+    }
   };
 
   const handleCloseCheckout = () => {
     setIsCheckoutOpen(false);
-    setCart([]);
   };
 
   return (
@@ -186,8 +276,7 @@ function App() {
               key={service.id}
               service={service}
               onViewDetails={handleViewDetails}
-              onAddToCart={handleAddToCart}
-              onDirectOrder={handleDirectOrder}
+              onAddToCart={handleOpenOrderModal}
             />
           ))}
         </div>
@@ -208,7 +297,6 @@ function App() {
           setIsModalOpen(false);
           setSelectedService(null);
         }}
-        onAddToCart={handleAddToCart}
       />
 
       <OrderModal
@@ -218,7 +306,8 @@ function App() {
           setIsOrderModalOpen(false);
           setSelectedService(null);
         }}
-        onSuccess={handleOrderSuccess}
+        onAddToCart={handleAddToCart}
+        onOpenCart={() => setIsCartOpen(true)}
       />
 
       <Cart

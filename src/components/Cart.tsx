@@ -49,11 +49,12 @@ export const Cart: React.FC<CartProps> = ({
           ) : (
             <div className="space-y-4">
               {items.map((item) => (
-                <div key={item.service.id} className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 border border-gray-100">
+                <div key={`${item.service.id}-${item.link}`} className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 border border-gray-100">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-800 text-sm">{item.service.name}</h3>
                       <p className="text-gray-500 text-xs capitalize">{item.service.platform}</p>
+                      <p className="text-gray-500 text-xs">{item.link}</p>
                     </div>
                     <button
                       onClick={() => onRemoveItem(item.service.id)}
@@ -66,17 +67,23 @@ export const Cart: React.FC<CartProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => onUpdateQuantity(item.service.id, item.quantity - 1)}
+                        onClick={() => onUpdateQuantity(item.service.id, Math.max(item.service.minQuantity, item.quantity - 0.001))}
                         disabled={item.quantity <= item.service.minQuantity}
                         className="p-1 rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Minus className="h-3 w-3" />
                       </button>
-                      <span className="bg-white px-3 py-1 rounded-md text-sm font-semibold">
-                        {item.quantity}
-                      </span>
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => onUpdateQuantity(item.service.id, Math.max(item.service.minQuantity, Math.min(parseFloat(e.target.value) || item.service.minQuantity, item.service.maxQuantity)))}
+                        min={item.service.minQuantity}
+                        max={item.service.maxQuantity}
+                        step={0.001}
+                        className="bg-white w-20 px-3 py-1 rounded-md text-sm font-semibold text-center"
+                      />
                       <button
-                        onClick={() => onUpdateQuantity(item.service.id, item.quantity + 1)}
+                        onClick={() => onUpdateQuantity(item.service.id, Math.min(item.quantity + 0.001, item.service.maxQuantity))}
                         disabled={item.quantity >= item.service.maxQuantity}
                         className="p-1 rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -89,7 +96,7 @@ export const Cart: React.FC<CartProps> = ({
                         R$ {(item.service.price * item.quantity).toFixed(2).replace('.', ',')}
                       </p>
                       <p className="text-xs text-gray-500">
-                        R$ {item.service.price.toFixed(2).replace('.', ',')} cada
+                        R$ {item.service.price.toFixed(2).replace('.', ',')} por mil
                       </p>
                     </div>
                   </div>
