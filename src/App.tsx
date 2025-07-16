@@ -27,11 +27,8 @@ function App() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedPlatform, setSelectedPlatform] = useState('all');
 
-  // API credentials
-  const API_BASE_URL = 'https://app.duckfy.com.br/api/v1';
-  const PUBLIC_KEY = 'latelieronline01_ge7s6u5s5wi2rvgw';
-  const SECRET_KEY = 't4mubgfc587z4kunu28olwlq5qp8xf14j6zmwftd4vw9skjdia2l46hbcj1lscze';
-  const WEBHOOK_URL = process.env.REACT_APP_WEBHOOK_URL || 'https://your-webhook-url.com/webhook';
+  // Webhook URL
+  const WEBHOOK_URL = process.env.REACT_APP_WEBHOOK_URL || 'https://baratosociais-server.onrender.com';
 
   // Fetch balance on mount
   useEffect(() => {
@@ -115,75 +112,27 @@ function App() {
 
   const handleCompleteOrder = async (customer: Customer) => {
     try {
-      // Create Pix payments for each cart item
-      const pixResponses = await Promise.all(
-        cart.map(async (item) => {
-          if (!item.service.apiServiceId) {
-            throw new Error(`Serviço ${item.service.name} não suporta API`);
-          }
-          const response = await axios.post(
-            `${API_BASE_URL}/gateway/pix/receive`,
-            {
-              identifier: `order-${Date.now()}-${item.service.id}`,
-              amount: item.service.price * item.quantity, // Price per 1000 units
-              client: {
-                name: customer.name,
-                email: customer.email,
-                phone: customer.phone,
-                document: customer.socialHandle, // CPF/CNPJ
-              },
-              products: [
-                {
-                  id: item.service.id,
-                  name: item.service.name,
-                  quantity: item.quantity, // In thousands
-                  price: item.service.price, // Price per 1000 units
-                },
-              ],
-              dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 day from now
-              metadata: { orderId: `order-${Date.now()}` },
-              callbackUrl: WEBHOOK_URL,
-            },
-            {
-              headers: {
-                'x-public-key': PUBLIC_KEY,
-                'x-secret-key': SECRET_KEY,
-              },
-            }
-          );
-
-          const { transactionId, status, pix } = response.data;
-          if (status !== 'OK') {
-            throw new Error(`Falha na transação para ${item.service.name}: ${response.data.errorDescription || 'Erro desconhecido'}`);
-          }
-
-          // Store order for webhook updates
-          const order: Order = {
-            id: Date.now().toString() + '-' + item.service.id,
-            customer,
-            items: [item],
-            total: item.service.price * item.quantity,
-            status: 'pending',
-            createdAt: new Date(),
-            transactionId,
-          };
-
-          // Send order to webhook server
-          await axios.post(`${WEBHOOK_URL}/update-order`, { transactionId, order });
-
-          return { transactionId, pix };
-        })
-      );
-
-      setOrders((prev) => [...prev, ...pixResponses.map((res, index) => ({
-        id: Date.now().toString() + '-' + cart[index].service.id,
+      // Call server to create Pix payments
+      const response = await axios.post(`${WEBHOOK_URL}/create-pix`, {
         customer,
-        items: [cart[index]],
-        total: cart[index].service.price * cart[index].quantity,
-        status: 'pending',
-        createdAt: new Date(),
-        transactionId: res.transactionId,
-      }))]);
+        items: cart,
+      });
+
+      const pixResponses = response.data; // Array of { transactionId, pix }
+
+      // Store orders in frontend
+      setOrders((prev) => [
+        ...prev,
+        ...pixResponses.map((res, index) => ({
+          id: Date.now().toString() + '-' + cart[index].service.id,
+          customer,
+          items: [cart[index]],
+          total: cart[index].service.price * cart[index].quantity,
+          status: 'pending',
+          createdAt: new Date(),
+          transactionId: res.transactionId,
+        })),
+      ]);
 
       setCart([]);
       return pixResponses; // Return Pix data for Checkout
@@ -200,7 +149,7 @@ function App() {
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
           order.transactionId === transactionId
-            ? { ...order, status: 'processing' } // Set to processing until placeOrder completes
+            ? { ...order, status: 'processing' }
             : order
         )
       );
