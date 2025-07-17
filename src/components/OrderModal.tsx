@@ -18,36 +18,44 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   onOpenCart,
 }) => {
   const [link, setLink] = useState('');
-  const [quantity, setQuantity] = useState(1); // Default to 1 (1000 units)
+  const [quantity, setQuantity] = useState<number | string>(1); // Allow string for input
   const [error, setError] = useState<string | null>(null);
   const MINIMUM_PRICE = 1.50;
 
   if (!isOpen || !service) return null;
 
   const handleQuantityChange = (value: string) => {
-    // Replace comma with dot for parsing (e.g., "1,25" → "1.25")
-    const sanitizedValue = value.replace(',', '.');
+    // Replace comma with dot and remove non-numeric characters (except dot)
+    const sanitizedValue = value.replace(',', '.').replace(/[^0-9.]/g, '');
     const num = parseFloat(sanitizedValue) || service.minQuantity;
     const cappedQuantity = Math.max(service.minQuantity, Math.min(num, service.maxQuantity));
-    setQuantity(cappedQuantity);
+    setQuantity(sanitizedValue || cappedQuantity); // Retain input as string for display
+  };
+
+  const handleQuantityBlur = () => {
+    // On blur, convert to number and format with comma
+    const numericQuantity = parseFloat((typeof quantity === 'string' ? quantity.replace(',', '.') : quantity) || service.minQuantity.toString());
+    const cappedQuantity = Math.max(service.minQuantity, Math.min(numericQuantity, service.maxQuantity));
+    setQuantity(cappedQuantity.toFixed(3).replace('.', ','));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const numericQuantity = typeof quantity === 'string' ? parseFloat(quantity.replace(',', '.')) : quantity;
     if (!link.trim()) {
       setError('Por favor, insira o link do perfil/post');
       return;
     }
-    if (quantity < service.minQuantity) {
+    if (numericQuantity < service.minQuantity) {
       setError(`A quantidade mínima é ${service.minQuantity} mil unidades`);
       return;
     }
-    if (quantity > service.maxQuantity) {
+    if (numericQuantity > service.maxQuantity) {
       setError(`A quantidade máxima é ${service.maxQuantity} mil unidades`);
       return;
     }
     setError(null);
-    onAddToCart(service, quantity, link.trim());
+    onAddToCart(service, numericQuantity, link.trim());
     onOpenCart();
     setLink('');
     setQuantity(service.minQuantity);
@@ -55,7 +63,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   };
 
   const adjustedPrice = Math.max(service.price, MINIMUM_PRICE);
-  const total = adjustedPrice * quantity; // Price per 1000 units
+  const numericQuantity = typeof quantity === 'string' ? parseFloat(quantity.replace(',', '.')) || service.minQuantity : quantity;
+  const total = adjustedPrice * numericQuantity;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -109,18 +118,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               Quantidade (em milhares)
             </label>
             <input
-              type="text" // Changed to text to allow comma input
-              value={quantity.toString().replace('.', ',')} // Display with comma
+              type="text"
+              value={typeof quantity === 'string' ? quantity : quantity.toFixed(3).replace('.', ',')}
               onChange={(e) => handleQuantityChange(e.target.value)}
-              min={service.minQuantity}
-              max={service.maxQuantity}
+              onBlur={handleQuantityBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               required
             />
             <div className="flex items-center space-x-2 mt-1 text-xs text-gray-500">
               <Info className="h-4 w-4" />
               <p>
-                Use vírgula para quantidades fracionadas (ex.: 1,25 = 1250 unidades). Mín: {service.minQuantity} mil - Máx: {service.maxQuantity} mil.
+                Use vírgula ou ponto para quantidades fracionadas (ex.: 1,25 ou 1.25 = 1250 unidades). Mín: {service.minQuantity} mil - Máx: {service.maxQuantity} mil.
               </p>
             </div>
           </div>
@@ -133,7 +141,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               </span>
             </div>
             <p className="text-sm text-gray-600 mt-1">
-              {quantity.toFixed(3).replace('.', ',')} mil unidades × R$ {adjustedPrice.toFixed(2).replace('.', ',')} por mil
+              {numericQuantity.toFixed(3).replace('.', ',')} mil unidades × R$ {adjustedPrice.toFixed(2).replace('.', ',')} por mil
             </p>
           </div>
 
