@@ -28,7 +28,8 @@ export const Cart: React.FC<CartProps> = ({
   );
 
   const handleQuantityChange = (serviceId: string, value: string) => {
-    const sanitizedValue = value.replace(',', '.').replace(/[^0-9.]/g, '');
+    console.log('Cart input value:', value); // Debug
+    const sanitizedValue = value.replace(',', '.').replace(/[^0-9.]/g, ''); // Allow numbers and dot
     const num = parseFloat(sanitizedValue) || item.service.minQuantity;
     const cappedQuantity = Math.max(item.service.minQuantity, Math.min(num, item.service.maxQuantity));
     onUpdateQuantity(serviceId, cappedQuantity);
@@ -51,7 +52,6 @@ export const Cart: React.FC<CartProps> = ({
     onUpdateQuantity(serviceId, newQuantity);
   };
 
-  // Always show the floating cart button/icon
   return (
     <div className="fixed bottom-4 right-4 z-50">
       {/* Floating Cart Button (Collapsed State) */}
@@ -122,6 +122,7 @@ export const Cart: React.FC<CartProps> = ({
                         </button>
                         <input
                           type="text"
+                          inputmode="decimal" // Improve mobile keyboard
                           value={item.quantity.toFixed(3).replace('.', ',')}
                           onChange={(e) => handleQuantityChange(item.service.id, e.target.value)}
                           onBlur={(e) => handleQuantityBlur(item.service.id, e.target.value)}
