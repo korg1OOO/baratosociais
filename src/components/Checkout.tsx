@@ -5,7 +5,7 @@ import { CartItem, Customer } from '../types';
 interface PixData {
   transactionId: string;
   pix: { base64: string };
-  pixString?: string; // Optional Pix code for copying
+  pixString?: string; // Mapped to pix.code from DuckFy API
 }
 
 interface CheckoutProps {
@@ -32,7 +32,10 @@ export const Checkout: React.FC<CheckoutProps> = ({
 
   if (!isOpen) return null;
 
-  const total = items.reduce((sum, item) => sum + item.service.price * item.quantity, 0);
+  const MINIMUM_PRICE = 1.50;
+
+  // Calculate total with minimum price
+  const total = items.reduce((sum, item) => sum + Math.max(item.service.price, MINIMUM_PRICE) * item.quantity, 0);
 
   const handleInputChange = (field: keyof Customer, value: string) => {
     setCustomer((prev) => ({ ...prev, [field]: value }));
@@ -65,6 +68,16 @@ export const Checkout: React.FC<CheckoutProps> = ({
     }
   };
 
+  const handleClose = () => {
+    if (step === 3 && pixData) {
+      const confirm = window.confirm(
+        'O pagamento Pix ainda não foi realizado. Se fechar agora, você precisará acessar o histórico de pedidos para continuar. Deseja fechar?'
+      );
+      if (!confirm) return;
+    }
+    onClose();
+  };
+
   const isStepValid = () => {
     if (step === 1) {
       return customer.name && customer.email && customer.phone && customer.socialHandle;
@@ -78,7 +91,7 @@ export const Checkout: React.FC<CheckoutProps> = ({
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-800">Finalizar Pedido</h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <X className="h-6 w-6" />
@@ -191,23 +204,26 @@ export const Checkout: React.FC<CheckoutProps> = ({
               <div className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-6 mb-6 border">
                 <h4 className="font-semibold mb-4 text-gray-800">Itens do Pedido</h4>
                 <div className="space-y-3">
-                  {items.map((item) => (
-                    <div
-                      key={`${item.service.id}-${item.link}`}
-                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-800">{item.service.name}</p>
-                        <p className="text-sm text-gray-500">
-                          Quantidade: {item.quantity} mil ({item.quantity * 1000} unidades)
+                  {items.map((item) => {
+                    const adjustedPrice = Math.max(item.service.price, MINIMUM_PRICE);
+                    return (
+                      <div
+                        key={`${item.service.id}-${item.link}`}
+                        className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
+                      >
+                        <div>
+                          <p className="font-medium text-gray-800">{item.service.name}</p>
+                          <p className="text-sm text-gray-500">
+                            Quantidade: {item.quantity} mil ({item.quantity * 1000} unidades)
+                          </p>
+                          <p className="text-sm text-gray-500">Link: {item.link}</p>
+                        </div>
+                        <p className="font-semibold text-gray-800">
+                          R$ {(adjustedPrice * item.quantity).toFixed(2).replace('.', ',')}
                         </p>
-                        <p className="text-sm text-gray-500">Link: {item.link}</p>
                       </div>
-                      <p className="font-semibold text-gray-800">
-                        R$ {(item.service.price * item.quantity).toFixed(2).replace('.', ',')}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="flex items-center justify-between pt-4 border-t border-gray-200 text-xl font-bold">
                   <span>Total:</span>
@@ -316,7 +332,7 @@ export const Checkout: React.FC<CheckoutProps> = ({
             )}
             {step === 3 && (
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="ml-auto px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white rounded-lg font-semibold transition-all duration-300"
               >
                 Concluir

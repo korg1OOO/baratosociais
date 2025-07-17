@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, AlertCircle, ShoppingCart } from 'lucide-react';
+import { X, AlertCircle, ShoppingCart, Info } from 'lucide-react';
 import { Service } from '../types';
 
 interface OrderModalProps {
@@ -15,16 +15,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   isOpen,
   onClose,
   onAddToCart,
-  onOpenCart
+  onOpenCart,
 }) => {
   const [link, setLink] = useState('');
   const [quantity, setQuantity] = useState(1); // Default to 1 (1000 units)
   const [error, setError] = useState<string | null>(null);
+  const MINIMUM_PRICE = 1.50;
 
   if (!isOpen || !service) return null;
 
   const handleQuantityChange = (value: string) => {
-    const num = parseFloat(value) || service.minQuantity;
+    // Replace comma with dot for parsing (e.g., "1,25" → "1.25")
+    const sanitizedValue = value.replace(',', '.');
+    const num = parseFloat(sanitizedValue) || service.minQuantity;
     const cappedQuantity = Math.max(service.minQuantity, Math.min(num, service.maxQuantity));
     setQuantity(cappedQuantity);
   };
@@ -51,7 +54,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     onClose();
   };
 
-  const total = service.price * quantity; // Price per 1000 units
+  const adjustedPrice = Math.max(service.price, MINIMUM_PRICE);
+  const total = adjustedPrice * quantity; // Price per 1000 units
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -70,7 +74,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           <div className="mb-4">
             <h3 className="font-semibold text-gray-800 mb-2">{service.name}</h3>
             <p className="text-sm text-gray-600">
-              Preço: R$ {service.price.toFixed(2).replace('.', ',')} por 1000 unidades
+              Preço: R$ {adjustedPrice.toFixed(2).replace('.', ',')} por 1000 unidades
             </p>
           </div>
 
@@ -105,18 +109,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               Quantidade (em milhares)
             </label>
             <input
-              type="number"
-              value={quantity}
+              type="text" // Changed to text to allow comma input
+              value={quantity.toString().replace('.', ',')} // Display with comma
               onChange={(e) => handleQuantityChange(e.target.value)}
               min={service.minQuantity}
               max={service.maxQuantity}
-              step={0.001} // Allow decimals for precision (e.g., 1.05 = 1050 units)
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Mín: {service.minQuantity} mil - Máx: {service.maxQuantity} mil (ex.: 1 = 1000 unidades)
-            </p>
+            <div className="flex items-center space-x-2 mt-1 text-xs text-gray-500">
+              <Info className="h-4 w-4" />
+              <p>
+                Use vírgula para quantidades fracionadas (ex.: 1,25 = 1250 unidades). Mín: {service.minQuantity} mil - Máx: {service.maxQuantity} mil.
+              </p>
+            </div>
           </div>
 
           <div className="mb-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
@@ -127,7 +133,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               </span>
             </div>
             <p className="text-sm text-gray-600 mt-1">
-              {quantity} mil unidades × R$ {service.price.toFixed(2).replace('.', ',')} por mil
+              {quantity.toFixed(3).replace('.', ',')} mil unidades × R$ {adjustedPrice.toFixed(2).replace('.', ',')} por mil
             </p>
           </div>
 

@@ -70,7 +70,7 @@ export const mapApiServiceToService = (apiService: any): Service => {
   if (apiService.refill) features.push('Reposição automática');
   if (apiService.cancel) features.push('Cancelamento disponível');
 
-  let deliveryTime = apiService.deliveryTime || '24-48 horas';
+  let deliveryTime = apiService.deliveryTime || '30-50 minutos';
   if (!apiService.deliveryTime) {
     if (category === 'likes' || category === 'views') deliveryTime = '5-30 minutos';
     else if (category === 'comments') deliveryTime = '1-6 horas';

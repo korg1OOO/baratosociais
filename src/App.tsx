@@ -29,6 +29,9 @@ function App() {
 
   // Webhook URL
   const WEBHOOK_URL = process.env.REACT_APP_WEBHOOK_URL || 'https://baratosociais-server.onrender.com';
+  
+  // Minimum price per item (in reais)
+  const MINIMUM_PRICE = 1.50;
 
   // Fetch balance on mount
   useEffect(() => {
@@ -120,14 +123,14 @@ function App() {
 
       const pixResponses = response.data; // Array of { transactionId, pix: { base64: string }, pixString }
 
-      // Store orders in frontend
+      // Store orders in frontend with adjusted price
       setOrders((prev) => [
         ...prev,
         ...pixResponses.map((res: { transactionId: string }, index: number) => ({
           id: Date.now().toString() + '-' + cart[index].service.id,
           customer,
-          items: [cart[index]],
-          total: cart[index].service.price * cart[index].quantity,
+          items: [{ ...cart[index], service: { ...cart[index].service, price: Math.max(cart[index].service.price, MINIMUM_PRICE) }}], // Store adjusted price
+          total: Math.max(cart[index].service.price, MINIMUM_PRICE) * cart[index].quantity,
           status: 'pending',
           createdAt: new Date(),
           transactionId: res.transactionId,
@@ -179,7 +182,7 @@ function App() {
           {filteredServices.map((service) => (
             <ServiceCard
               key={service.id}
-              service={service}
+              service={{ ...service, price: Math.max(service.price, MINIMUM_PRICE) }} // Adjust price for display
               onViewDetails={handleViewDetails}
               onAddToCart={handleOpenOrderModal}
             />

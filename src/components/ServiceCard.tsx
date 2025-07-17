@@ -5,7 +5,7 @@ import { Service } from '../types';
 interface ServiceCardProps {
   service: Service;
   onViewDetails: (service: Service) => void;
-  onAddToCart: (service: Service) => void; // Updated to trigger OrderModal
+  onAddToCart: (service: Service) => void;
 }
 
 const platformIcons = {
@@ -16,7 +16,7 @@ const platformIcons = {
   twitter: '🐦',
   telegram: '✈️',
   twitch: '🎮',
-  kwai: '🎬'
+  kwai: '🎬',
 };
 
 const platformColors = {
@@ -27,15 +27,17 @@ const platformColors = {
   twitter: 'from-blue-400 to-blue-500',
   telegram: 'from-blue-500 to-cyan-500',
   twitch: 'from-purple-500 to-purple-700',
-  kwai: 'from-orange-500 to-red-500'
+  kwai: 'from-orange-500 to-red-500',
 };
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({ 
   service, 
   onViewDetails, 
-  onAddToCart
+  onAddToCart,
 }) => {
   const hasApiIntegration = !!service.apiServiceId;
+  const MINIMUM_PRICE = 1.50;
+  const displayPrice = Math.max(service.price, MINIMUM_PRICE);
 
   return (
     <div className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group hover:scale-105 border border-gray-100">
@@ -86,7 +88,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
         <div className="flex items-center justify-between mb-4">
           <div>
             <span className="text-3xl font-bold text-gray-800">
-              R$ {service.price.toFixed(2).replace('.', ',')}
+              R$ {displayPrice.toFixed(2).replace('.', ',')}
             </span>
             <span className="text-gray-500 text-sm block">por 1000 unidades</span>
           </div>
