@@ -118,12 +118,12 @@ function App() {
         items: cart,
       });
 
-      const pixResponses = response.data; // Array of { transactionId, pix }
+      const pixResponses = response.data; // Array of { transactionId, pix: { base64: string }, pixString }
 
       // Store orders in frontend
       setOrders((prev) => [
         ...prev,
-        ...pixResponses.map((res, index) => ({
+        ...pixResponses.map((res: { transactionId: string }, index: number) => ({
           id: Date.now().toString() + '-' + cart[index].service.id,
           customer,
           items: [cart[index]],
@@ -139,50 +139,6 @@ function App() {
     } catch (err) {
       console.error('Failed to complete order:', err);
       throw err;
-    }
-  };
-
-  const handleWebhookUpdate = async (webhookData: any) => {
-    const { event, transaction } = webhookData;
-    if (event === 'TRANSACTION_PAID' && transaction.status === 'COMPLETED') {
-      const transactionId = transaction.id;
-      setOrders((prevOrders) =>
-        prevOrders.map((order) =>
-          order.transactionId === transactionId
-            ? { ...order, status: 'processing' }
-            : order
-        )
-      );
-
-      // Trigger placeOrder for each item in the order
-      const order = orders.find((o) => o.transactionId === transactionId);
-      if (order) {
-        try {
-          const apiOrderIds = await Promise.all(
-            order.items.map(async (item) => {
-              if (item.service.apiServiceId) {
-                return await placeOrder(item.service.apiServiceId, item.link, item.quantity * 1000); // Convert to actual units
-              }
-              return null;
-            })
-          );
-
-          setOrders((prevOrders) =>
-            prevOrders.map((o) =>
-              o.transactionId === transactionId
-                ? { ...o, status: 'completed', apiOrderId: apiOrderIds[0] || undefined }
-                : o
-            )
-          );
-        } catch (err) {
-          console.error('Failed to place order after payment:', err);
-          setOrders((prevOrders) =>
-            prevOrders.map((o) =>
-              o.transactionId === transactionId ? { ...o, status: 'failed' } : o
-            )
-          );
-        }
-      }
     }
   };
 
