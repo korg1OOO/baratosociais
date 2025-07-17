@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react';
+import { X, Plus, Minus, Trash2, ShoppingBag, Info } from 'lucide-react';
 import { CartItem } from '../types';
 
 interface CartProps {
@@ -29,6 +29,8 @@ export const Cart: React.FC<CartProps> = ({
 
   const handleQuantityChange = (serviceId: string, value: string) => {
     console.log('Cart input value:', value); // Debug
+    const item = items.find((i) => i.service.id === serviceId);
+    if (!item) return;
     const sanitizedValue = value.replace(',', '.').replace(/[^0-9.]/g, ''); // Allow numbers and dot
     const num = parseFloat(sanitizedValue) || item.service.minQuantity;
     const cappedQuantity = Math.max(item.service.minQuantity, Math.min(num, item.service.maxQuantity));
@@ -36,6 +38,8 @@ export const Cart: React.FC<CartProps> = ({
   };
 
   const handleQuantityBlur = (serviceId: string, value: string) => {
+    const item = items.find((i) => i.service.id === serviceId);
+    if (!item) return;
     const sanitizedValue = value.replace(',', '.').replace(/[^0-9.]/g, '');
     const num = parseFloat(sanitizedValue) || item.service.minQuantity;
     const cappedQuantity = Math.max(item.service.minQuantity, Math.min(num, item.service.maxQuantity));
@@ -122,7 +126,7 @@ export const Cart: React.FC<CartProps> = ({
                         </button>
                         <input
                           type="text"
-                          inputmode="decimal" // Improve mobile keyboard
+                          inputMode="decimal"
                           value={item.quantity.toFixed(3).replace('.', ',')}
                           onChange={(e) => handleQuantityChange(item.service.id, e.target.value)}
                           onBlur={(e) => handleQuantityBlur(item.service.id, e.target.value)}
@@ -136,7 +140,6 @@ export const Cart: React.FC<CartProps> = ({
                           <Plus className="h-3 w-3" />
                         </button>
                       </div>
-
                       <div className="text-right">
                         <p className="text-sm font-bold text-gray-800">
                           R$ {(Math.max(item.service.price, MINIMUM_PRICE) * item.quantity).toFixed(2).replace('.', ',')}
@@ -145,6 +148,12 @@ export const Cart: React.FC<CartProps> = ({
                           R$ {Math.max(item.service.price, MINIMUM_PRICE).toFixed(2).replace('.', ',')} por mil
                         </p>
                       </div>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-1 text-xs text-gray-500">
+                      <Info className="h-4 w-4" />
+                      <p>
+                        Use vírgula ou ponto para quantidades fracionadas (ex.: 1,25 ou 1.25 = 1250 unidades).
+                      </p>
                     </div>
                   </div>
                 ))}
